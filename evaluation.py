@@ -67,22 +67,28 @@ if __name__ == "__main__":
             total_reward = []
             actions = []
             for i in range(MAX_EPS):
+                # print(i)
                 r = []
                 a = []
                 # cyborg.env.env.tracker.render()
                 for j in range(num_steps):
                     action = agent.get_action(observation, action_space)
                     observation, rew, done, info = wrapped_cyborg.step(action)
+                    #print(observation)
                     # result = cyborg.step(agent_name, action)
                     r.append(rew)
                     # r.append(result.reward)
                     a.append((str(cyborg.get_last_action('Blue')), str(cyborg.get_last_action('Red'))))
+                    print(j)
+                    print(agent.agent)
 
                 agent.end_episode()
                 total_reward.append(sum(r))
                 actions.append(a)
                 # observation = cyborg.reset().observation
                 observation = wrapped_cyborg.reset()
+                print("ep done")
+                print("reward is: ", sum(r))
             print(f'Average reward for red agent {red_agent.__name__} and steps {num_steps} is: {mean(total_reward)} with a standard deviation of {stdev(total_reward)}')
             with open(file_name, 'a+') as data:
                 data.write(f'steps: {num_steps}, adversary: {red_agent.__name__}, mean: {mean(total_reward)}, standard deviation {stdev(total_reward)}\n')

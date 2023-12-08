@@ -17,9 +17,11 @@ class ChallengeWrapper2(Env, BaseWrapper):
         else:
             raise ValueError('Invalid Agent Name')
 
+        #print(env.environment_controller.agent_interfaces['Red'].agent.get_agent_type())
         env = table_wrapper(env, output_mode='vector')
         env = EnumActionWrapper(env)
         env = OpenAIGymWrapper(agent_name=agent_name, env=env)
+        #print(env.env.env.env.env.environment_controller.agent_interfaces['Red'].agent.get_agent_type())
 
         self.env = env
         self.action_space = self.env.action_space

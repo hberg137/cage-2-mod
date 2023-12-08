@@ -11,6 +11,8 @@ class MainAgent(PPOAgent):
                              132, 2, 15, 24, 25, 26, 27]
         self.end_episode()
 
+        self.agent = None
+
     def get_action(self, observation, action_space=None):
 
         action = None
@@ -21,9 +23,12 @@ class MainAgent(PPOAgent):
         if len(self.start_actions) > 0:
             action = self.start_actions[0]
             self.start_actions = self.start_actions[1:]
+            # print(self.start_actions)
+            print(len(self.start_actions))
 
         # load agent based on fingerprint
         elif self.agent_loaded is False:
+            # print(self.action_space)
             if self.fingerprint_meander():
                 self.agent = self.load_meander()
             elif self.fingerprint_bline():
@@ -43,7 +48,11 @@ class MainAgent(PPOAgent):
                                          1007: [], # defender
                                          1008: []} # opserver0
             # add old since it will add new scan in its own action (since recieves latest observation)
+            #print(self.scan_state)
+            #print(self.agent.scan_state)
+            #print(old_scan_state)
             self.agent.scan_state = old_scan_state
+            print(self.agent.scan_state)
 
 
         # take action of agent
@@ -55,13 +64,13 @@ class MainAgent(PPOAgent):
         return BlueSleepAgent()
 
     def load_bline(self):
-        ckpt = os.path.join(os.getcwd(),"Models","bline","model.pth")
+        ckpt = os.path.join(os.getcwd(),"Models","bline_train","100000.pth")
         return PPOAgent(52, self.action_space, restore=True, ckpt=ckpt,
                        deterministic=True, training=False)
 
 
     def load_meander(self):
-        ckpt = os.path.join(os.getcwd(),"Models","meander","model.pth")
+        ckpt = os.path.join(os.getcwd(),"Models","meander_train","100000.pth")
         return PPOAgent(52, self.action_space, restore=True, ckpt=ckpt,
                        deterministic=True, training=False)
 

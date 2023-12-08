@@ -8,6 +8,7 @@ import torch.nn as nn
 from CybORG.Agents import BaseAgent
 import numpy as np
 import copy
+import pprint
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -68,6 +69,7 @@ class PPOAgent(BaseAgent):
         # not needed for ppo since no transitions (remnant of DQNAgent)
         self.scan_state_old = copy.copy(self.scan_state)
 
+        #pprint.pprint(observation)
         self.add_scan(observation)
         observation = self.pad_observation(observation)
         state = torch.FloatTensor(observation.reshape(1, -1)).to(device)
@@ -84,7 +86,14 @@ class PPOAgent(BaseAgent):
         if action_ in self.decoy_ids:
             host = action_
             # select a decoy from available ones
+            #print("action before:")
+            #pprint.pprint(action_)
             action_ = self.select_decoy(host, observation=observation)
+            #print("action after:")
+            #pprint.pprint(action_)
+
+        # restore_decoy_mapping keys are restore actions (132-144); this checks to see if a decoy is currently in a host
+        # and removes it if so
 
         # if action is a restore, delete all decoys from decoy list for that host
         if action_ in self.restore_decoy_mapping.keys():
@@ -93,6 +102,7 @@ class PPOAgent(BaseAgent):
                     if decoy in self.current_decoys[host]:
                         self.remove_decoy(decoy, host)
 
+        #pprint.pprint(action_)
         return action_
 
     def store(self, reward, done):
@@ -138,6 +148,7 @@ class PPOAgent(BaseAgent):
                         if a not in self.restore_decoy_mapping.keys():
                             action = a
                             break
+        # print(action)
         return action
 
     def train(self):
@@ -194,13 +205,14 @@ class PPOAgent(BaseAgent):
         self.scan_state_old = np.zeros(10)
         # add start actions
         self.start_actions = copy.copy(self.start)
+        #print("tt")
 
 
     def set_initial_values(self, action_space, observation=None):
         self.memory = Memory()
 
         self.greedy_decoys = {1000: [55, 107, 120, 29],  # enterprise0 decoy actions
-                              1001: [43],  # enterprise1 decoy actions
+                              1001: [43],  # enterprise1 decoy actionsobservation
                               1002: [44],  # enterprise2 decoy actions
                               1003: [37, 115, 76, 102],  # user1 decoy actions
                               1004: [51, 116, 38, 90],  # user2 decoy actions
@@ -238,6 +250,8 @@ class PPOAgent(BaseAgent):
         # add for all hosts
         for i in range(13):
             self.restore_decoy_mapping[132 + i] = [x + i for x in base_list]
+            #for x in base_list:
+            #    pprint.pprint(x+i)
 
         # we statically add 9 decoy actions
         action_space_size = len(action_space)
@@ -246,6 +260,7 @@ class PPOAgent(BaseAgent):
 
         # add decoys to action space (all except user0)
         self.action_space = action_space + self.decoy_ids
+        #print(self.action_space)
 
         # add 10 to input_dims for the scanning state
         self.input_dims += 10

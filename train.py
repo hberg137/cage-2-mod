@@ -61,13 +61,13 @@ if __name__ == '__main__':
     np.random.seed(0)
 
     # change checkpoint directory
-    folder = 'bline'
+    folder = 'meander_train'
     ckpt_folder = os.path.join(os.getcwd(), "Models", folder)
     if not os.path.exists(ckpt_folder):
         os.makedirs(ckpt_folder)
 
     CYBORG = CybORG(PATH, 'sim', agents={
-        'Red': B_lineAgent
+        'Red': RedMeanderAgent
     })
     env = ChallengeWrapper2(env=CYBORG, agent_name="Blue")
     input_dims = env.observation_space.shape[0]
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     start_actions = [1004, 1004, 1000] # user 2 decoy * 2, ent0 decoy
 
     print_interval = 50
-    save_interval = 200
+    save_interval = 10000
     max_episodes = 100000
     max_timesteps = 100
     # 200 episodes for buffer
