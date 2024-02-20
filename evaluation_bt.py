@@ -13,6 +13,9 @@ import random
 import py_trees_devel.py_trees as py_trees
 import evaluation_bt_nodes as bt_nodes
 
+import torch
+from controller.ctrl import LSTMModel
+
 import numpy as np
 
 import random
@@ -20,6 +23,9 @@ import random
 MAX_EPS = 1000
 agent_name = 'Blue'
 random.seed(0)
+
+# Device Configuration
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Behavior tree
 
@@ -47,6 +53,10 @@ def build_blackboard():
     blackboard.register_key(key = "labels", access = py_trees.common.Access.WRITE)
     
     blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "lstm_model", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "need_switch", access = py_trees.common.Access.WRITE)
+    
 
     return blackboard
 
@@ -113,7 +123,7 @@ if __name__ == "__main__":
     cyborg_version = CYBORG_VERSION
     scenario = 'Scenario2'
     random.seed(42)
-    # save_file_name = "results/" + scenario + "_RED_MB_MODEL_MB_FULL"
+    save_file_name = "results/" + scenario + "_RED_MB_MODEL_MB_FULL"
     
     min_sw_step = 10
     max_sw_step = 30
@@ -123,6 +133,19 @@ if __name__ == "__main__":
     switch = StratSwitch(switch_step=random.randint(min_sw_step, max_sw_step))
 
     agent = MainAgent()
+    
+    # Create LSTM Model
+    INPUT_DIM = 52
+    HIDDEN_DIM = 100
+    LAYER_DIM = 2
+    OUT_DIM = 1
+    LEARNING_RATE = 1e-3
+
+    lstm_model = LSTMModel(INPUT_DIM, HIDDEN_DIM, LAYER_DIM, OUT_DIM).to(device)
+    MODEL_PATH = 'Models/controller/lstm_model.pth'
+    lstm_model.load_state_dict(torch.load(MODEL_PATH))
+    lstm_model.eval()
+    
     rewards_list = []
     # Change this line to load your agentobservation
     for num_steps in [100]:
@@ -130,6 +153,7 @@ if __name__ == "__main__":
         blackboard = build_blackboard()
         
         blackboard.switch = switch
+        blackboard.lstm_model = lstm_model
         
         blackboard.states = []
         blackboard.labels = []
@@ -156,11 +180,14 @@ if __name__ == "__main__":
             print("EPISODE",i)
             blackboard.r = []
             blackboard.a = []
+            blackboard.window = []
+            blackboard.need_switch = True
 
             root = build_bt(agent)
 
             # get_action.setup()  # initialize the parameters for episode
             # cyborg.env.env.tracker.render()
+            blackboard.switch.switch_step = 10
 
             blackboard.test_counter = 0
             blackboard.step = 0
@@ -183,6 +210,6 @@ if __name__ == "__main__":
             print("ep done. reward is: ", sum(blackboard.r))
             switch.switch_step = random.randint(min_sw_step, max_sw_step)
     
-    # np.save(save_file_name + ".npy", np.array(rewards_list))
-    np.save("data/states.npy", np.array(blackboard.states))
-    np.save("data/labels.npy", np.array(blackboard.labels))
+    np.save(save_file_name + ".npy", np.array(rewards_list))
+    # np.save("data/states.npy", np.array(blackboard.states))
+    # np.save("data/labels.npy", np.array(blackboard.labels))

@@ -4,6 +4,7 @@ import copy
 from Agents.PPOAgent import PPOAgent
 import torch
 import torch.nn as nn
+import time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -91,10 +92,19 @@ class ChangeStratCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
         
         self.blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "lstm_model", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "need_switch", access = py_trees.common.Access.WRITE)
     
     def update(self):
         if self.blackboard.step == 3 or self.blackboard.step == self.blackboard.switch.switch_step:
             return py_trees.common.Status.SUCCESS
+        # elif self.blackboard.need_switch and len(self.blackboard.window) == 5:
+        #     tens_window = torch.tensor(self.blackboard.window, dtype=torch.float32).unsqueeze(0).to(device)
+        #     out = self.blackboard.lstm_model(tens_window)
+        #     if (out > 0.5).item():
+        #         self.blackboard.need_switch = False
+        #         return py_trees.common.Status.SUCCESS
         return py_trees.common.Status.FAILURE
 
 
@@ -137,7 +147,6 @@ class ChangeStrat(py_trees.behaviour.Behaviour):
             self.blackboard.agent.agent.scan_state = scan_state_copy
             self.blackboard.agent.agent_loaded = True
         else:
-            # print(self.blackboard.step)
             self.blackboard.agent.agent = self.blackboard.agent.load_bline()
 
         return py_trees.common.Status.SUCCESS
@@ -276,13 +285,17 @@ class ExecuteActions(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key = "labels", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
 
     def update(self):
         #print(self.blackboard.observation)
         self.blackboard.observation, reward, done, info = self.blackboard.wrapped_cyborg.step(self.blackboard.action)
         self.blackboard.r.append(reward)
         self.blackboard.states.append(self.blackboard.observation)
-        if self.blackboard.step < self.blackboard.switch_step:
+        self.blackboard.window.append(self.blackboard.observation)
+        if len(self.blackboard.window) > 5:
+            self.blackboard.window.pop(0)
+        if self.blackboard.step < self.blackboard.switch.switch_step:
             self.blackboard.labels.append([0])
         else:
             self.blackboard.labels.append([1])
