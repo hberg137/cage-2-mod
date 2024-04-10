@@ -4,6 +4,7 @@ import copy
 from Agents.PPOAgent import PPOAgent
 import torch
 import torch.nn as nn
+import time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -89,10 +90,21 @@ class ChangeStratCheck(py_trees.behaviour.Behaviour):
         super().__init__(name = name)
         self.blackboard = self.attach_blackboard_client()
         self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
+        
+        self.blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "lstm_model", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "need_switch", access = py_trees.common.Access.WRITE)
     
     def update(self):
-        if self.blackboard.step == 3:
+        if self.blackboard.step == 3 or self.blackboard.step == self.blackboard.switch.switch_step:
             return py_trees.common.Status.SUCCESS
+        # elif self.blackboard.need_switch and len(self.blackboard.window) == 5:
+        #     tens_window = torch.tensor(self.blackboard.window, dtype=torch.float32).unsqueeze(0).to(device)
+        #     out = self.blackboard.lstm_model(tens_window)
+        #     if (out > 0.5).item():
+        #         self.blackboard.need_switch = False
+        #         return py_trees.common.Status.SUCCESS
         return py_trees.common.Status.FAILURE
 
 
@@ -104,34 +116,38 @@ class ChangeStrat(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key = "scan_state", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "observation", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
 
     def update(self):
-        scan_state_copy = copy.copy(self.blackboard.agent.scan_state)
-        # print(self.blackboard.agent.scan_state)
-        
-        self.blackboard.agent.add_scan(self.blackboard.observation)
+        if self.blackboard.step == 3:
+            scan_state_copy = copy.copy(self.blackboard.agent.scan_state)
+            # print(self.blackboard.agent.scan_state)
+            
+            self.blackboard.agent.add_scan(self.blackboard.observation)
 
-        if self.blackboard.agent.fingerprint_meander():
-            self.blackboard.agent.agent = self.blackboard.agent.load_meander()
-        elif self.blackboard.agent.fingerprint_bline():
-            self.blackboard.agent.agent = self.blackboard.agent.load_bline()
+            if self.blackboard.agent.fingerprint_meander():
+                self.blackboard.agent.agent = self.blackboard.agent.load_meander()
+            elif self.blackboard.agent.fingerprint_bline():
+                self.blackboard.agent.agent = self.blackboard.agent.load_bline()
+            else:
+                self.blackboard.agent.agent = self.blackboard.agent.load_sleep()
+        
+            #print(self.blackboard.agent.agent)
+            # add decoys and scan state
+            self.blackboard.agent.agent.current_decoys = {1000: [55], # enterprise0
+                                                    1001: [], # enterprise1
+                                                    1002: [], # enterprise2
+                                                    1003: [], # user1
+                                                    1004: [51, 116], # user2
+                                                    1005: [], # user3
+                                                    1006: [], # user4
+                                                    1007: [], # defender
+                                                    1008: []} # opserver0
+            # add old since it will add new scan in its own action (since recieves latest observation)
+            self.blackboard.agent.agent.scan_state = scan_state_copy
+            self.blackboard.agent.agent_loaded = True
         else:
-            self.blackboard.agent.agent = self.blackboard.agent.load_sleep()
-    
-        #print(self.blackboard.agent.agent)
-        # add decoys and scan state
-        self.blackboard.agent.agent.current_decoys = {1000: [55], # enterprise0
-                                                1001: [], # enterprise1
-                                                1002: [], # enterprise2
-                                                1003: [], # user1
-                                                1004: [51, 116], # user2
-                                                1005: [], # user3
-                                                1006: [], # user4
-                                                1007: [], # defender
-                                                1008: []} # opserver0
-        # add old since it will add new scan in its own action (since recieves latest observation)
-        self.blackboard.agent.agent.scan_state = scan_state_copy
-        self.blackboard.agent.agent_loaded = True
+            self.blackboard.agent.agent = self.blackboard.agent.load_bline()
 
         return py_trees.common.Status.SUCCESS
 
@@ -265,10 +281,24 @@ class ExecuteActions(py_trees.behaviour.Behaviour):
 
         self.blackboard.register_key(key = "test_counter", access = py_trees.common.Access.WRITE)
 
+        self.blackboard.register_key(key = "states", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "labels", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
+
     def update(self):
         #print(self.blackboard.observation)
         self.blackboard.observation, reward, done, info = self.blackboard.wrapped_cyborg.step(self.blackboard.action)
         self.blackboard.r.append(reward)
+        self.blackboard.states.append(self.blackboard.observation)
+        self.blackboard.window.append(self.blackboard.observation)
+        if len(self.blackboard.window) > 5:
+            self.blackboard.window.pop(0)
+        if self.blackboard.step < self.blackboard.switch.switch_step:
+            self.blackboard.labels.append([0])
+        else:
+            self.blackboard.labels.append([1])
         self.blackboard.a.append((str(self.blackboard.cyborg.get_last_action('Blue')),
                                   str(self.blackboard.cyborg.get_last_action('Red'))))
         

@@ -13,9 +13,19 @@ import random
 import py_trees_devel.py_trees as py_trees
 import evaluation_bt_nodes as bt_nodes
 
+import torch
+from controller.ctrl import LSTMModel
+
+import numpy as np
+
+import random
+
 MAX_EPS = 1000
 agent_name = 'Blue'
 random.seed(0)
+
+# Device Configuration
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Behavior tree
 
@@ -38,6 +48,15 @@ def build_blackboard():
     blackboard.register_key(key = "r", access = py_trees.common.Access.WRITE)
     blackboard.register_key(key = "a", access = py_trees.common.Access.WRITE)
     blackboard.register_key(key = "test_counter", access = py_trees.common.Access.WRITE)
+    
+    blackboard.register_key(key = "states", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "labels", access = py_trees.common.Access.WRITE)
+    
+    blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "lstm_model", access = py_trees.common.Access.WRITE)
+    blackboard.register_key(key = "need_switch", access = py_trees.common.Access.WRITE)
+    
 
     return blackboard
 
@@ -89,7 +108,9 @@ def build_bt(agent):
     #py_trees.display.render_dot_tree(root)
     return root
 
-
+class StratSwitch:
+    def __init__(self, switch_step) -> None:
+        self.switch_step = switch_step
 
 # changed to ChallengeWrapper2
 def wrap(env):
@@ -101,88 +122,94 @@ def get_git_revision_hash() -> str:
 if __name__ == "__main__":
     cyborg_version = CYBORG_VERSION
     scenario = 'Scenario2'
-    # commit_hash = get_git_revision_hash()
-    commit_hash = "Not using git"
-    # ask for a name
-    name = "John Hannay"
-    # ask for a team
-    team = "CardiffUni"
-    # ask for a name for the agent
-    name_of_agent = "PPO + Greedy decoys"
-
-    lines = inspect.getsource(wrap)
-    wrap_line = lines.split('\n')[1].split('return ')[1]
-
-    agent = MainAgent()
-
-    # Change this line to load your agentobservation
-
-    print(f'Using agent {agent.__class__.__name__}, if this is incorrect please update the code to load in your agent')
-
-    file_name = str(inspect.getfile(CybORG))[:-10] + '/Evaluation/' + time.strftime("%Y%m%d_%H%M%S") + f'_{agent.__class__.__name__}.txt'
-    print(f'Saving evaluation results to {file_name}')
-    with open(file_name, 'a+') as data:
-        data.write(f'CybORG v{cyborg_version}, {scenario}, Commit Hash: {commit_hash}\n')
-        data.write(f'author: {name}, team: {team}, technique: {name_of_agent}\n')
-        data.write(f"wrappers: {wrap_line}\n")
-
+    random.seed(42)
+    save_file_name = "results/" + scenario + "_RED_MB_MODEL_MB_FULL"
+    
+    min_sw_step = 10
+    max_sw_step = 30
+    
     path = str(inspect.getfile(CybORG))
     path = path[:-10] + f'/Shared/Scenarios/{scenario}.yaml'
+    switch = StratSwitch(switch_step=random.randint(min_sw_step, max_sw_step))
 
-    print(f'using CybORG v{cyborg_version}, {scenario}\n')
-    for num_steps in [30, 50, 100]:
-        for red_agent in [B_lineAgent, RedMeanderAgent, SleepAgent]:
+    agent = MainAgent()
+    
+    # Create LSTM Model
+    INPUT_DIM = 52
+    HIDDEN_DIM = 100
+    LAYER_DIM = 2
+    OUT_DIM = 1
+    LEARNING_RATE = 1e-3
 
-            # Create behavior tree 
-            blackboard = build_blackboard()
+    lstm_model = LSTMModel(INPUT_DIM, HIDDEN_DIM, LAYER_DIM, OUT_DIM).to(device)
+    MODEL_PATH = 'Models/controller/lstm_model.pth'
+    lstm_model.load_state_dict(torch.load(MODEL_PATH))
+    lstm_model.eval()
+    
+    rewards_list = []
+    # Change this line to load your agentobservation
+    for num_steps in [100]:
+        # Create behavior tree 
+        blackboard = build_blackboard()
+        
+        blackboard.switch = switch
+        blackboard.lstm_model = lstm_model
+        
+        blackboard.states = []
+        blackboard.labels = []
 
-            blackboard.agent = agent
-            blackboard.cyborg = CybORG(path, 'sim', agents={'Red': red_agent})
-            blackboard.wrapped_cyborg = wrap(blackboard.cyborg)
+        blackboard.agent = agent
+        red_agent = RedMeanderAgent
+        red2 = B_lineAgent
+        blackboard.cyborg = CybORG(path, 'sim', agents={'Red': red_agent, 'Red2': red2}, strat_switch=switch)
+        blackboard.wrapped_cyborg = wrap(blackboard.cyborg)
 
-            blackboard.observation = blackboard.wrapped_cyborg.reset()
+        blackboard.observation = blackboard.wrapped_cyborg.reset()
+        # blackboard.states.append(blackboard.observation)
+        # blackboard.labels.append([0])
+        # observation = cyborg.reset().observation
+
+        blackboard.action_space = blackboard.wrapped_cyborg.get_action_space(agent_name)
+
+        
+        # action_space = cyborg.get_action_space(agent_name)
+        total_reward = []
+        actions = []
+
+        for i in range(MAX_EPS):
+            print("EPISODE",i)
+            blackboard.r = []
+            blackboard.a = []
+            blackboard.window = []
+            blackboard.need_switch = True
+
+            root = build_bt(agent)
+
+            # get_action.setup()  # initialize the parameters for episode
+            # cyborg.env.env.tracker.render()
+            blackboard.switch.switch_step = 10
+
+            blackboard.test_counter = 0
+            blackboard.step = 0
+
+            # subtract 3 because of setup steps
+            for j in range(num_steps):
+                root.tick_once()
+                blackboard.step += 1
+
+                #print(blackboard.cyborg.get_last_action("Red"))
+
+                # result = cyborg.step(agent_name, action)
+                
+            agent.end_episode()
+            rewards_list.append(blackboard.r)
+            total_reward.append(sum(blackboard.r))
+            actions.append(blackboard.a)
             # observation = cyborg.reset().observation
-
-            blackboard.action_space = blackboard.wrapped_cyborg.get_action_space(agent_name)
-
-            
-            
-            # action_space = cyborg.get_action_space(agent_name)
-            total_reward = []
-            actions = []
-            if red_agent != SleepAgent:
-                for i in range(MAX_EPS):
-                    # print(i)
-                    blackboard.r = []
-                    blackboard.a = []
-
-                    root = build_bt(agent)
-
-                    # get_action.setup()  # initialize the parameters for episode
-                    # cyborg.env.env.tracker.render()
-
-                    blackboard.test_counter = 0
-                    blackboard.step = 0
-
-                    # subtract 3 because of setup steps
-                    for j in range(num_steps):
-                        root.tick_once()
-                        blackboard.step += 1
-
-                        #print(blackboard.cyborg.get_last_action("Red"))
-
-                        # result = cyborg.step(agent_name, action)
-                        
-                    agent.end_episode()
-                    total_reward.append(sum(blackboard.r))
-                    actions.append(blackboard.a)
-                    # observation = cyborg.reset().observation
-                    blackboard.observation = blackboard.wrapped_cyborg.reset()
-                    print("ep done. reward is: ", sum(blackboard.r))
-            else:
-                total_reward.extend([0, 0])
-            print(f'Average reward for red agent {red_agent.__name__} and steps {num_steps} is: {mean(total_reward)} with a standard deviation of {stdev(total_reward)}')
-            with open(file_name, 'a+') as data:
-                data.write(f'steps: {num_steps}, adversary: {red_agent.__name__}, mean: {mean(total_reward)}, standard deviation {stdev(total_reward)}\n')
-                for act, sum_rew in zip(actions, total_reward):
-                    data.write(f'actions: {act}, total reward: {sum_rew}\n')
+            blackboard.observation = blackboard.wrapped_cyborg.reset()
+            print("ep done. reward is: ", sum(blackboard.r))
+            switch.switch_step = random.randint(min_sw_step, max_sw_step)
+    
+    np.save(save_file_name + ".npy", np.array(rewards_list))
+    # np.save("data/states.npy", np.array(blackboard.states))
+    # np.save("data/labels.npy", np.array(blackboard.labels))
