@@ -3,6 +3,9 @@ import inspect
 import time
 from statistics import mean, stdev
 
+import sys
+sys.path.append("/home/bergsthm/cage-challenge-2/cage-challenge-2/CybORG")
+
 from CybORG import CybORG, CYBORG_VERSION
 from CybORG.Agents import B_lineAgent, SleepAgent
 from CybORG.Agents.SimpleAgents.Meander import RedMeanderAgent

@@ -4,84 +4,8 @@ import copy
 from Agents.PPOAgent import PPOAgent
 import torch
 import torch.nn as nn
-import time
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-class GetAction(py_trees.behaviour.Behaviour):
-
-    def __init__(self, name: str = "GetAction"):
-        super().__init__(name = name)
-        self.blackboard = self.attach_blackboard_client()
-        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "observation", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "action_space", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
-
-        #self.agent = agent
-
-    def update(self):
-        if self.blackboard.step >= 3:
-            self.blackboard.agent.add_scan(self.blackboard.observation)
-            self.blackboard.action = self.blackboard.agent.agent.get_action(self.blackboard.observation)
-            # print("in action")
-        return py_trees.common.Status.SUCCESS
-
-
-class SetupCheck(py_trees.behaviour.Behaviour):
-
-    def __init__(self, name: str = "Setup?"):
-        super().__init__(name = name)
-        self.blackboard = self.attach_blackboard_client()
-        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
-    
-    def update(self):
-        if self.blackboard.step < 3:
-            return py_trees.common.Status.SUCCESS
-        return py_trees.common.Status.FAILURE
-
-
-class Setup(py_trees.behaviour.Behaviour):
-
-    def __init__(self, agent, name: str = "Setup Action"):
-        super().__init__(name = name)
-        self.blackboard = self.attach_blackboard_client()
-        self.blackboard.register_key(key = "decoy_ids", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "action_space", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "scan_state", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "start_actions", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "observation", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
-
-        self.blackboard.agent = agent
-
-        self.blackboard.decoy_ids = list(range(1000, 1009))
-        self.blackboard.action_space = [133, 134, 135, 139, 3, 4, 5, 9, 16, 17, 18, 22, 11, 12, 13, 14,
-                                        141, 142, 143, 144, 132, 2, 15, 24, 25, 26, 27] + self.blackboard.decoy_ids
-        #print(self.blackboard.action_space)
-        self.blackboard.scan_state = np.zeros(10)
-        self.blackboard.start_actions = [51, 116, 55]
-
-    def update(self):
-
-        # scan_state_copy = copy.copy(self.blackboard.agent.scan_state)
-        
-        self.blackboard.agent.add_scan(self.blackboard.observation)
-
-        # print(self.blackboard.agent.start_actions)
-
-        if len(self.blackboard.agent.start_actions) > 0:
-            #PPOAgent.add_scan(self.blackboard.agent, self.blackboard.observation)
-            # super(type(self.blackboard.agent), self.blackboard.agent).add_scan(self.blackboard.observation)
-            self.blackboard.action = self.blackboard.agent.start_actions[0]
-            self.blackboard.agent.start_actions = self.blackboard.agent.start_actions[1:]
-            # print(self.blackboard.start_actions)
-            # print(len(self.blackboard.agent.start_actions))
-
-        # print(self.blackboard.observation)
-        return py_trees.common.Status.SUCCESS
 
 
 class ChangeStratCheck(py_trees.behaviour.Behaviour):
@@ -90,7 +14,7 @@ class ChangeStratCheck(py_trees.behaviour.Behaviour):
         super().__init__(name = name)
         self.blackboard = self.attach_blackboard_client()
         self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
-        
+
         self.blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "lstm_model", access = py_trees.common.Access.WRITE)
@@ -99,14 +23,16 @@ class ChangeStratCheck(py_trees.behaviour.Behaviour):
     def update(self):
         #  or self.blackboard.step == self.blackboard.switch.switch_step
         if self.blackboard.step == 3:
-            return py_trees.common.Status.SUCCESS
+            # print("switch", self.blackboard.step)
+            return py_trees.common.Status.FAILURE
         elif self.blackboard.need_switch and len(self.blackboard.window) == 5:
             tens_window = torch.tensor(self.blackboard.window, dtype=torch.float32).unsqueeze(0).to(device)
             out = self.blackboard.lstm_model(tens_window)
             if (out > 0.5).item():
+                # print("switch")
                 self.blackboard.need_switch = False
-                return py_trees.common.Status.SUCCESS
-        return py_trees.common.Status.FAILURE
+                return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS
 
 
 class ChangeStrat(py_trees.behaviour.Behaviour):
@@ -128,7 +54,6 @@ class ChangeStrat(py_trees.behaviour.Behaviour):
 
             if self.blackboard.agent.fingerprint_meander():
                 self.blackboard.agent.agent = self.blackboard.agent.load_meander()
-                # print("meander loaded")
             elif self.blackboard.agent.fingerprint_bline():
                 self.blackboard.agent.agent = self.blackboard.agent.load_bline()
             else:
@@ -151,7 +76,7 @@ class ChangeStrat(py_trees.behaviour.Behaviour):
         else:
             # print("bline loaded")
             self.blackboard.agent.agent = self.blackboard.agent.load_bline()
-        # print("step:", self.blackboard.step)
+
         return py_trees.common.Status.SUCCESS
 
 
@@ -164,6 +89,7 @@ class GetPPOAction(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "action_space", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
 
 
     def update(self):
@@ -176,8 +102,34 @@ class GetPPOAction(py_trees.behaviour.Behaviour):
         action = self.blackboard.agent.agent.old_policy.act(state, self.blackboard.agent.agent.memory,
                                                             deterministic = self.blackboard.agent.agent.deterministic)
         self.blackboard.action = self.blackboard.action_space[action]
-        
-        
+
+        return py_trees.common.Status.SUCCESS
+
+
+class AnalyzeCheck(py_trees.behaviour.Behaviour):
+    
+    def __init__(self, name: str = "Action is Analyze?"):
+        super().__init__(name = name)
+        self.blackboard = self.attach_blackboard_client()
+        self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
+
+    def update(self):
+        if self.blackboard.action < 15:
+            return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS
+
+
+class Analyze(py_trees.behaviour.Behaviour):
+
+    def __init__(self, name: str = "Analyze"):
+        super().__init__(name = name)
+        self.blackboard = self.attach_blackboard_client()
+        self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "transformed_action", access = py_trees.common.Access.WRITE)
+
+    def update(self):
+        self.blackboard.transformed_action = self.blackboard.action
         return py_trees.common.Status.SUCCESS
 
 
@@ -190,9 +142,10 @@ class DeployDecoyCheck(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key = "decoy_ids", access = py_trees.common.Access.WRITE)
 
     def update(self):
+        # print(self.blackboard.action)
         if self.blackboard.action in self.blackboard.decoy_ids:
-            return py_trees.common.Status.SUCCESS
-        return py_trees.common.Status.FAILURE
+            return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS
 
 
 class DeployDecoy(py_trees.behaviour.Behaviour):
@@ -201,6 +154,7 @@ class DeployDecoy(py_trees.behaviour.Behaviour):
         super().__init__(name = name)
         self.blackboard = self.attach_blackboard_client()
         self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "transformed_action", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "observation", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "decoy_ids", access = py_trees.common.Access.WRITE)
@@ -210,9 +164,9 @@ class DeployDecoy(py_trees.behaviour.Behaviour):
         host = self.blackboard.action
         try:
         # pick the top remaining decoy
-            self.blackboard.action = [a for a in self.blackboard.agent.agent.greedy_decoys[host]
-                                        if a not in self.blackboard.agent.agent.current_decoys[host]][0]
-            self.blackboard.agent.agent.add_decoy(self.blackboard.action, host)
+            self.blackboard.transformed_action = [a for a in self.blackboard.agent.agent.greedy_decoys[host]
+                                                  if a not in self.blackboard.agent.agent.current_decoys[host]][0]
+            self.blackboard.agent.agent.add_decoy(self.blackboard.transformed_action, host)
         except:
             state = torch.FloatTensor(self.blackboard.observation.reshape(1, -1)).to(device)
             actions = self.blackboard.agent.agent.old_policy.act(state, self.blackboard.agent.agent.memory, full=True)
@@ -226,13 +180,13 @@ class DeployDecoy(py_trees.behaviour.Behaviour):
                 # if next best action is decoy, check if its full also
                 if a in self.blackboard.agent.agent.current_decoys.keys():
                     if len(self.blackboard.agent.agent.current_decoys[a]) < len(self.blackboard.agent.agent.greedy_decoys[a]):
-                        self.blackboard.action = self.blackboard.agent.agent.select_decoy(a, self.blackboard.observation)
-                        self.blackboard.agent.agent.add_decoy(self.blackboard.action, a)
+                        self.blackboard.transformed_action = self.blackboard.agent.agent.select_decoy(a, self.blackboard.observation)
+                        self.blackboard.agent.agent.add_decoy(self.blackboard.transformed_action, a)
                         break
                 else:
                     # don't select a next best action if "restore", likely too aggressive for 30-50 episodes
                     if a not in self.blackboard.agent.agent.restore_decoy_mapping.keys():
-                        self.blackboard.action = a
+                        self.blackboard.transformed_action = a
                         break
         
         return py_trees.common.Status.SUCCESS
@@ -248,8 +202,8 @@ class RemoveDecoysCheck(py_trees.behaviour.Behaviour):
 
     def update(self):
         if self.blackboard.action in self.blackboard.agent.agent.restore_decoy_mapping.keys():
-            return py_trees.common.Status.SUCCESS
-        return py_trees.common.Status.FAILURE
+            return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.SUCCESS
 
 
 class RemoveDecoys(py_trees.behaviour.Behaviour):
@@ -258,14 +212,17 @@ class RemoveDecoys(py_trees.behaviour.Behaviour):
         super().__init__(name = name)
         self.blackboard = self.attach_blackboard_client()
         self.blackboard.register_key(key = "action", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "transformed_action", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "agent", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "decoy_ids", access = py_trees.common.Access.WRITE)
 
     def update(self):
-        for decoy in self.blackboard.agent.agent.restore_decoy_mapping[self.blackboard.action]:
-            for host in self.blackboard.decoy_ids:
-                if decoy in self.blackboard.agent.agent.current_decoys[host]:
-                    self.blackboard.agent.agent.current_decoys[host].remove(decoy)
+        self.blackboard.transformed_action = self.blackboard.action
+        if self.blackboard.action > 27:
+            for decoy in self.blackboard.agent.agent.restore_decoy_mapping[self.blackboard.action]:
+                for host in self.blackboard.decoy_ids:
+                    if decoy in self.blackboard.agent.agent.current_decoys[host]:
+                        self.blackboard.agent.agent.current_decoys[host].remove(decoy)
 
         return py_trees.common.Status.SUCCESS
 
@@ -281,28 +238,15 @@ class ExecuteActions(py_trees.behaviour.Behaviour):
         self.blackboard.register_key(key = "r", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "a", access = py_trees.common.Access.WRITE)
         self.blackboard.register_key(key = "cyborg", access = py_trees.common.Access.WRITE)
+        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
 
         self.blackboard.register_key(key = "test_counter", access = py_trees.common.Access.WRITE)
 
-        self.blackboard.register_key(key = "states", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "labels", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "step", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "switch", access = py_trees.common.Access.WRITE)
-        self.blackboard.register_key(key = "window", access = py_trees.common.Access.WRITE)
-
     def update(self):
-        #print(self.blackboard.observation)
+        # print(self.blackboard.observation)
         self.blackboard.observation, reward, done, info = self.blackboard.wrapped_cyborg.step(self.blackboard.action)
-        # print(reward)
+        # print(self.blackboard.action)
         self.blackboard.r.append(reward)
-        self.blackboard.states.append(self.blackboard.observation)
-        self.blackboard.window.append(self.blackboard.observation)
-        if len(self.blackboard.window) > 5:
-            self.blackboard.window.pop(0)
-        if self.blackboard.step < self.blackboard.switch.switch_step:
-            self.blackboard.labels.append([0])
-        else:
-            self.blackboard.labels.append([1])
         self.blackboard.a.append((str(self.blackboard.cyborg.get_last_action('Blue')),
                                   str(self.blackboard.cyborg.get_last_action('Red'))))
         
