@@ -1,0 +1,33 @@
+digraph pastafarianism {
+ordering=out;
+graph [fontname="times-roman"];
+node [fontname="times-roman"];
+edge [fontname="times-roman"];
+"CAGE Challenge BT" [fillcolor=orange, fontcolor=black, fontsize=9, label="Ⓜ CAGE Challenge BT", shape=box, style=filled];
+"Change Strategy Selector" [fillcolor=cyan, fontcolor=black, fontsize=9, label="Change Strategy Selector", shape=octagon, style=filled];
+"CAGE Challenge BT" -> "Change Strategy Selector";
+"Change Strategy?" [fillcolor=gray, fontcolor=black, fontsize=9, label="Change Strategy?", shape=ellipse, style=filled];
+"Change Strategy Selector" -> "Change Strategy?";
+"Change Strategy" [fillcolor=gray, fontcolor=black, fontsize=9, label="Change Strategy", shape=ellipse, style=filled];
+"Change Strategy Selector" -> "Change Strategy";
+"Get PPO Action" [fillcolor=gray, fontcolor=black, fontsize=9, label="Get PPO Action", shape=ellipse, style=filled];
+"CAGE Challenge BT" -> "Get PPO Action";
+"Analyze Selector" [fillcolor=cyan, fontcolor=black, fontsize=9, label="Analyze Selector", shape=octagon, style=filled];
+"CAGE Challenge BT" -> "Analyze Selector";
+"Action is Analyze?" [fillcolor=gray, fontcolor=black, fontsize=9, label="Action is Analyze?", shape=ellipse, style=filled];
+"Analyze Selector" -> "Action is Analyze?";
+Analyze [fillcolor=gray, fontcolor=black, fontsize=9, label=Analyze, shape=ellipse, style=filled];
+"Analyze Selector" -> Analyze;
+"Deploy Decoy Selector" [fillcolor=cyan, fontcolor=black, fontsize=9, label="Deploy Decoy Selector", shape=octagon, style=filled];
+"CAGE Challenge BT" -> "Deploy Decoy Selector";
+"Action is Deploy Decoy?" [fillcolor=gray, fontcolor=black, fontsize=9, label="Action is Deploy Decoy?", shape=ellipse, style=filled];
+"Deploy Decoy Selector" -> "Action is Deploy Decoy?";
+"Deploy Decoy" [fillcolor=gray, fontcolor=black, fontsize=9, label="Deploy Decoy", shape=ellipse, style=filled];
+"Deploy Decoy Selector" -> "Deploy Decoy";
+"Action is Analyze?*" [fillcolor=gray, fontcolor=black, fontsize=9, label="Action is Analyze?*", shape=ellipse, style=filled];
+"CAGE Challenge BT" -> "Action is Analyze?*";
+"Action is Deploy Decoy?*" [fillcolor=gray, fontcolor=black, fontsize=9, label="Action is Deploy Decoy?*", shape=ellipse, style=filled];
+"CAGE Challenge BT" -> "Action is Deploy Decoy?*";
+"Remove Decoys" [fillcolor=gray, fontcolor=black, fontsize=9, label="Remove Decoys", shape=ellipse, style=filled];
+"CAGE Challenge BT" -> "Remove Decoys";
+}
